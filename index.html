@@ -67,15 +67,21 @@
     <script type="module">
         // Import the functions you need from the SDKs you need
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getDatabase, ref, onValue, set, onDisconnect, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-database.js";
 
         // --- Firebase Configuration ---
-        const firebaseConfig = typeof __firebase_config !== 'undefined' 
-            ? JSON.parse(__firebase_config) 
-            : { apiKey: "DEMO", authDomain: "DEMO", projectId: "DEMO", databaseURL: "https://<YOUR-PROJECT-ID>.firebaseio.com" };
-
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-quiz-app-presence';
+        // این بخش با اطلاعات پروژه شما جایگزین شد
+        const firebaseConfig = {
+            apiKey: "AIzaSyC415a4wKJ_RISihbKeNEFDRwpy7V_7pj0",
+            authDomain: "pythontest-4deab.firebaseapp.com",
+            projectId: "pythontest-4deab",
+            databaseURL: "https://pythontest-4deab-default-rtdb.firebaseio.com", // آدرس پایگاه داده Realtime اضافه شد
+            storageBucket: "pythontest-4deab.appspot.com",
+            messagingSenderId: "267415735118",
+            appId: "1:267415735118:web:dada57d8c349ed40bb2c1f",
+            measurementId: "G-ZK8N93Y3K2"
+        };
         
         // --- Initialize Firebase ---
         const app = initializeApp(firebaseConfig);
@@ -87,40 +93,29 @@
         
         async function setupPresence() {
             try {
-                // Step 1: Authenticate the user.
-                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                    await signInWithCustomToken(auth, __initial_auth_token);
-                } else {
-                    await signInAnonymously(auth);
-                }
-                const user = auth.currentUser;
+                // Step 1: Authenticate the user anonymously.
+                const userCredential = await signInAnonymously(auth);
+                const user = userCredential.user;
 
                 if (!user) {
                     console.error("Firebase authentication failed. Presence system cannot be initialized.");
                     return;
                 }
                 
-                // This is a standard path for presence systems in RTDB
-                const presenceRef = ref(db, `/artifacts/${appId}/public/presence`);
-                const userStatusRef = ref(db, `/artifacts/${appId}/public/presence/${user.uid}`);
+                const presencePath = `/presence/python-quiz`;
+                const userStatusRef = ref(db, `${presencePath}/${user.uid}`);
+                const presenceRef = ref(db, presencePath);
                 
-                // Firebase's built-in tool to detect connection status
                 const connectedRef = ref(db, '.info/connected');
 
                 onValue(connectedRef, (snap) => {
                     if (snap.val() === true) {
-                        // If we are connected, set our presence.
                         set(userStatusRef, { online: true, last_changed: serverTimestamp() });
-
-                        // And when we are disconnected, remove our presence.
-                        // This is handled by the Firebase server, making it very reliable.
                         onDisconnect(userStatusRef).remove();
                     }
                 });
 
-                // Listen for changes in the main presence collection to update the count.
                 onValue(presenceRef, (snapshot) => {
-                    // FIX: Use snapshot.size property for Realtime Database instead of numChildren() method
                     const onlineUsersCount = snapshot.exists() ? snapshot.size : 0;
                     onlineCountEl.innerText = onlineUsersCount > 0 ? onlineUsersCount : '1';
                 }, (error) => {
@@ -130,6 +125,9 @@
 
             } catch (error) {
                 console.error("Error setting up presence system:", error);
+                if (error.code === 'auth/network-request-failed' || error.message.includes('apiKey')) {
+                   alert("خطای اتصال به Firebase: لطفاً مطمئن شوید که اطلاعات firebaseConfig را به درستی در کد قرار داده‌اید.");
+                }
             }
         }
 
