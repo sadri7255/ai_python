@@ -36,6 +36,18 @@
         </svg>
         <span>کاربران آنلاین: <span id="online-count">۱</span></span>
     </div>
+    
+    <!-- Error Display Container -->
+    <div id="error-container" class="hidden fixed bottom-4 left-4 bg-red-100 border-t-4 border-red-500 rounded-b text-red-900 px-4 py-3 shadow-md z-20" role="alert">
+        <div class="flex">
+            <div class="py-1"><svg class="fill-current h-6 w-6 text-red-500 ml-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M2.93 17.07A10 10 0 1 1 17.07 2.93 10 10 0 0 1 2.93 17.07zM11.414 10l2.829-2.828-1.415-1.415L10 8.586 7.172 5.757 5.757 7.172 8.586 10l-2.829 2.828 1.415 1.415L10 11.414l2.828 2.829 1.415-1.415L11.414 10z"/></svg></div>
+            <div>
+                <p class="font-bold">خطا در اتصال به سرور</p>
+                <p class="text-sm" id="error-message"></p>
+            </div>
+        </div>
+    </div>
+
 
     <div id="quiz-container" class="w-full max-w-2xl bg-white rounded-2xl shadow-lg p-6 md:p-8 m-4">
         <h1 id="main-title" class="text-2xl md:text-3xl font-bold text-center text-gray-800 mb-2">آزمون جامع پایتون</h1>
@@ -93,13 +105,11 @@
         
         async function setupPresence() {
             try {
-                // Step 1: Authenticate the user anonymously.
                 const userCredential = await signInAnonymously(auth);
                 const user = userCredential.user;
 
                 if (!user) {
-                    console.error("Firebase authentication failed. Presence system cannot be initialized.");
-                    return;
+                    throw new Error("Firebase authentication failed.");
                 }
                 
                 const presencePath = `/presence/python-quiz`;
@@ -125,8 +135,15 @@
 
             } catch (error) {
                 console.error("Error setting up presence system:", error);
-                if (error.code === 'auth/network-request-failed' || error.message.includes('apiKey')) {
-                   alert("خطای اتصال به Firebase: لطفاً مطمئن شوید که اطلاعات firebaseConfig را به درستی در کد قرار داده‌اید.");
+                const errorContainer = document.getElementById('error-container');
+                const errorMessageEl = document.getElementById('error-message');
+                // Check for common configuration errors
+                if (error.code && (error.code.includes('auth/operation-not-allowed') || error.code.includes('permission-denied'))) {
+                   errorMessageEl.innerText = 'اتصال ناموفق بود. لطفاً مطمئن شوید که دامنه شما (مثلا: sadri7255.github.io) در بخش Authentication > Settings > Authorized domains پروژه Firebase اضافه شده است.';
+                   errorContainer.classList.remove('hidden');
+                } else {
+                   errorMessageEl.innerText = 'یک خطای ناشناخته در اتصال به سرور رخ داد. لطفاً صفحه را رفرش کنید.';
+                   errorContainer.classList.remove('hidden');
                 }
             }
         }
