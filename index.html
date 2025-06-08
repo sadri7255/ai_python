@@ -85,19 +85,12 @@
 
         // --- Real-time Presence System ---
         const onlineCountEl = document.getElementById('online-count');
-        const presenceCollectionRef = collection(db, `/artifacts/${appId}/public/data/presence`);
         let currentUserRef = null;
-
-        // Listen for real-time updates on the presence collection
-        onSnapshot(presenceCollectionRef, (snapshot) => {
-            const onlineUsersCount = snapshot.size;
-            onlineCountEl.innerText = onlineUsersCount > 0 ? onlineUsersCount : '1';
-        });
 
         async function setupPresence() {
             try {
-                // Sign in the user
-                 if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                // Sign in the user first
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
                     await signInWithCustomToken(auth, __initial_auth_token);
                 } else {
                     await signInAnonymously(auth);
@@ -105,7 +98,16 @@
                 const user = auth.currentUser;
                 
                 if (user) {
-                    // Add the user to the presence collection
+                    // Now that the user is authenticated, set up the listener and add presence
+                    const presenceCollectionRef = collection(db, `/artifacts/${appId}/public/data/presence`);
+
+                    // Listen for real-time updates on the presence collection
+                    onSnapshot(presenceCollectionRef, (snapshot) => {
+                        const onlineUsersCount = snapshot.size;
+                        onlineCountEl.innerText = onlineUsersCount > 0 ? onlineUsersCount : '1';
+                    });
+
+                    // Add the current user to the presence collection
                     currentUserRef = await addDoc(presenceCollectionRef, { uid: user.uid, joinedAt: new Date() });
 
                     // Attempt to remove the user when they leave the page
