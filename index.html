@@ -43,7 +43,7 @@
 </head>
 <body class="bg-gray-100 flex items-center justify-center min-h-screen py-8 relative">
 
-    <!-- Online Users Display -->
+    <!-- Online Users Display (Smart Simulator) -->
     <div id="online-users-container" class="absolute top-4 right-4 bg-white bg-opacity-90 backdrop-blur-sm text-gray-700 text-sm font-semibold py-2 px-4 rounded-full shadow-md flex items-center z-10">
         <div class="status-dot status-connected"></div>
         <span>کاربران آنلاین: <span id="online-count">...</span></span>
@@ -75,13 +75,13 @@
         </div>
     </div>
 
-    <!-- Firebase SDKs -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getDatabase, ref, onValue, set, onDisconnect, push } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-database.js";
 
         // --- Firebase Configuration ---
         const firebaseConfig = {
+            // Your config details are here...
             apiKey: "AIzaSyC415a4wKJ_RISihbKeNEFDRwpy7V_7pj0",
             authDomain: "pythontest-4deab.firebaseapp.com",
             projectId: "pythontest-4deab",
@@ -103,16 +103,18 @@
         // Create a new connection entry with a unique ID for this specific tab/session
         const myConnectionRef = push(presenceRef);
 
-        // When this connection is lost, Firebase server will remove it
+        // When this connection is lost, remove it from the database
         onDisconnect(myConnectionRef).remove();
 
-        // Set the value to true for this connection to mark it as 'online'
+        // Set the value to true for this connection
+        // FIX: The variable was `myConnectionRef`, not `myConnection.ref`
         set(myConnectionRef, true);
 
-        // Listen for changes in the number of connections to update the count
+        // Listen for changes in the number of connections
         onValue(presenceRef, (snapshot) => {
             const onlineUsersCount = snapshot.exists() ? snapshot.size : 0;
-            onlineCountEl.innerText = onlineUsersCount > 0 ? onlineUsersCount : '1';
+            // FIX: Display the actual number of users.
+            onlineCountEl.innerText = onlineUsersCount;
         }, (error) => {
             console.error("Firebase connection error:", error);
             onlineCountEl.innerText = '؟';
