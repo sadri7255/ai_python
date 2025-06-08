@@ -68,22 +68,21 @@
         // Import the functions you need from the SDKs you need
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getDatabase, ref, onValue, set, onDisconnect, serverTimestamp, goOffline, goOnline } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-database.js";
-
+        import { getDatabase, ref, onValue, set, onDisconnect, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-database.js";
 
         // --- Firebase Configuration ---
         const firebaseConfig = typeof __firebase_config !== 'undefined' 
             ? JSON.parse(__firebase_config) 
-            : { apiKey: "DEMO", authDomain: "DEMO", projectId: "DEMO", databaseURL: "https://<YOUR-PROJECT-ID>.firebaseio.com" }; // Fallback with a placeholder URL
+            : { apiKey: "DEMO", authDomain: "DEMO", projectId: "DEMO", databaseURL: "https://<YOUR-PROJECT-ID>.firebaseio.com" };
 
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-quiz-app';
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-quiz-app-presence';
         
         // --- Initialize Firebase ---
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getDatabase(app);
 
-        // --- Real-time Presence System (Using Realtime Database) ---
+        // --- NEW: Robust Real-time Presence System (Using Realtime Database) ---
         const onlineCountEl = document.getElementById('online-count');
         
         async function setupPresence() {
@@ -97,44 +96,37 @@
                 const user = auth.currentUser;
 
                 if (!user) {
-                    console.error("Firebase authentication failed.");
+                    console.error("Firebase authentication failed. Presence system cannot be initialized.");
                     return;
                 }
                 
-                // Reference to the main presence collection in RTDB
+                // This is a standard path for presence systems in RTDB
                 const presenceRef = ref(db, `/artifacts/${appId}/public/presence`);
-
-                // Reference to this user's specific presence node
                 const userStatusRef = ref(db, `/artifacts/${appId}/public/presence/${user.uid}`);
                 
-                // Reference to Firebase's connection state monitor
+                // Firebase's built-in tool to detect connection status
                 const connectedRef = ref(db, '.info/connected');
 
                 onValue(connectedRef, (snap) => {
                     if (snap.val() === true) {
-                        // User is connected.
+                        // If we are connected, set our presence.
                         set(userStatusRef, { online: true, last_changed: serverTimestamp() });
 
-                        // Set up the server-side onDisconnect hook.
-                        // This is the reliable way to handle disconnections.
+                        // And when we are disconnected, remove our presence.
+                        // This is handled by the Firebase server, making it very reliable.
                         onDisconnect(userStatusRef).remove();
                     }
                 });
 
                 // Listen for changes in the main presence collection to update the count.
                 onValue(presenceRef, (snapshot) => {
+                    // FIX: Use snapshot.size property for Realtime Database instead of numChildren() method
                     const onlineUsersCount = snapshot.exists() ? snapshot.size : 0;
                     onlineCountEl.innerText = onlineUsersCount > 0 ? onlineUsersCount : '1';
                 }, (error) => {
                     console.error("Snapshot listener error:", error);
                     onlineCountEl.innerText = '?';
                 });
-
-                // Best-effort cleanup for page unload
-                window.addEventListener('beforeunload', (e) => {
-                    set(userStatusRef, null); // Try to remove immediately
-                });
-
 
             } catch (error) {
                 console.error("Error setting up presence system:", error);
