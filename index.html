@@ -96,20 +96,20 @@
         const app = initializeApp(firebaseConfig);
         const db = getDatabase(app);
 
-        // --- Final Presence System ---
+        // --- Final Presence System (No Auth) ---
         const onlineCountEl = document.getElementById('online-count');
-        const presenceRef = ref(db, 'presence/python-quiz');
+        const presenceRef = ref(db, 'presence/python-quiz-v2');
 
         // Create a new connection entry with a unique ID for this specific tab/session
         const myConnectionRef = push(presenceRef);
 
-        // When this connection is lost, remove it from the database
+        // When this connection is lost, Firebase server will remove it
         onDisconnect(myConnectionRef).remove();
 
-        // Set the value to true for this connection
+        // Set the value to true for this connection to mark it as 'online'
         set(myConnectionRef, true);
 
-        // Listen for changes in the number of connections
+        // Listen for changes in the number of connections to update the count
         onValue(presenceRef, (snapshot) => {
             const onlineUsersCount = snapshot.exists() ? snapshot.size : 0;
             onlineCountEl.innerText = onlineUsersCount > 0 ? onlineUsersCount : '1';
