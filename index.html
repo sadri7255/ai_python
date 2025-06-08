@@ -25,16 +25,24 @@
         #quiz-container {
             transition: height 0.5s ease-in-out;
         }
+        .status-dot {
+            height: 10px;
+            width: 10px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-left: 8px;
+        }
+        .status-connecting { background-color: #f59e0b; } /* amber-500 */
+        .status-connected { background-color: #22c55e; } /* green-500 */
+        .status-error { background-color: #ef4444; } /* red-500 */
     </style>
 </head>
 <body class="bg-gray-100 flex items-center justify-center min-h-screen py-8 relative">
 
     <!-- Online Users Display -->
     <div id="online-users-container" class="absolute top-4 right-4 bg-white bg-opacity-80 backdrop-blur-sm text-gray-700 text-sm font-semibold py-2 px-4 rounded-full shadow-md flex items-center z-10">
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 ml-2 text-green-500 animate-pulse" viewBox="0 0 20 20" fill="currentColor">
-            <path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd" />
-        </svg>
-        <span>کاربران آنلاین: <span id="online-count">۱</span></span>
+        <div id="connection-status-dot" class="status-dot status-connecting" title="در حال اتصال..."></div>
+        <span>کاربران آنلاین: <span id="online-count">...</span></span>
     </div>
 
     <div id="quiz-container" class="w-full max-w-2xl bg-white rounded-2xl shadow-lg p-6 md:p-8 m-4">
@@ -89,6 +97,7 @@
 
         // --- Robust Real-time Presence System ---
         const onlineCountEl = document.getElementById('online-count');
+        const connectionStatusDot = document.getElementById('connection-status-dot');
         
         async function setupPresence() {
             try {
@@ -96,9 +105,10 @@
                 const user = userCredential.user;
 
                 if (!user) {
-                    console.error("Firebase authentication failed.");
-                    return;
+                    throw new Error("Firebase authentication failed.");
                 }
+
+                console.log("Authenticated with UID:", user.uid); // Log UID for debugging
                 
                 const presencePath = `/presence/python-quiz`;
                 const userStatusRef = ref(db, `${presencePath}/${user.uid}`);
@@ -108,8 +118,16 @@
 
                 onValue(connectedRef, (snap) => {
                     if (snap.val() === true) {
+                        connectionStatusDot.classList.remove('status-connecting', 'status-error');
+                        connectionStatusDot.classList.add('status-connected');
+                        connectionStatusDot.title = "متصل";
+
                         set(userStatusRef, { online: true, last_changed: serverTimestamp() });
                         onDisconnect(userStatusRef).remove();
+                    } else {
+                        connectionStatusDot.classList.remove('status-connected', 'status-connecting');
+                        connectionStatusDot.classList.add('status-error');
+                        connectionStatusDot.title = "قطع اتصال";
                     }
                 });
 
@@ -119,10 +137,16 @@
                 }, (error) => {
                     console.error("Snapshot listener error:", error);
                     onlineCountEl.innerText = '?';
+                    connectionStatusDot.classList.remove('status-connected', 'status-connecting');
+                    connectionStatusDot.classList.add('status-error');
+                    connectionStatusDot.title = `خطا: ${error.message}`;
                 });
 
             } catch (error) {
                 console.error("Error setting up presence system:", error);
+                connectionStatusDot.classList.remove('status-connected', 'status-connecting');
+                connectionStatusDot.classList.add('status-error');
+                connectionStatusDot.title = `خطا در راه اندازی: ${error.message}`;
             }
         }
 
