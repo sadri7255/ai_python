@@ -67,71 +67,80 @@
     <script type="module">
         // Import the functions you need from the SDKs you need
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getFirestore, collection, onSnapshot, addDoc, deleteDoc, doc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getDatabase, ref, onValue, set, onDisconnect, serverTimestamp, goOffline, goOnline } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-database.js";
+
 
         // --- Firebase Configuration ---
-        // These global variables are provided by the environment.
         const firebaseConfig = typeof __firebase_config !== 'undefined' 
             ? JSON.parse(__firebase_config) 
-            : { apiKey: "DEMO", authDomain: "DEMO", projectId: "DEMO" }; // Fallback for local dev
+            : { apiKey: "DEMO", authDomain: "DEMO", projectId: "DEMO", databaseURL: "https://<YOUR-PROJECT-ID>.firebaseio.com" }; // Fallback with a placeholder URL
 
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-quiz-app';
         
         // --- Initialize Firebase ---
         const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
         const auth = getAuth(app);
+        const db = getDatabase(app);
 
-        // --- Real-time Presence System ---
+        // --- Real-time Presence System (Using Realtime Database) ---
         const onlineCountEl = document.getElementById('online-count');
-        let currentUserRef = null;
-
+        
         async function setupPresence() {
             try {
-                // Step 1: Authenticate the user. This must happen before any database operations.
+                // Step 1: Authenticate the user.
                 if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
                     await signInWithCustomToken(auth, __initial_auth_token);
                 } else {
                     await signInAnonymously(auth);
                 }
                 const user = auth.currentUser;
-                
-                if (user) {
-                    const presenceCollectionRef = collection(db, `/artifacts/${appId}/public/data/presence`);
-                    
-                    // Step 2: Add the current user's presence document to the collection first.
-                    currentUserRef = await addDoc(presenceCollectionRef, { 
-                        uid: user.uid, 
-                        joinedAt: serverTimestamp() 
-                    });
 
-                    // Step 3: NOW, attach the snapshot listener to get the count of online users.
-                    // This order is more robust and prevents potential permission/race condition issues.
-                    onSnapshot(presenceCollectionRef, (snapshot) => {
-                        const onlineUsersCount = snapshot.size;
-                        onlineCountEl.innerText = onlineUsersCount > 0 ? onlineUsersCount : '1';
-                    }, (error) => {
-                        console.error("Snapshot listener error:", error);
-                        onlineCountEl.innerText = '?'; // Show an error indicator
-                    });
-
-                    // Step 4: Attach the cleanup function for when the user leaves.
-                    // This is a best-effort cleanup and may not always run, especially on mobile.
-                    window.addEventListener('beforeunload', () => {
-                        if (currentUserRef) {
-                            deleteDoc(doc(db, `/artifacts/${appId}/public/data/presence`, currentUserRef.id));
-                        }
-                    });
-                } else {
-                    console.error("Firebase authentication failed. Presence system cannot be initialized.");
+                if (!user) {
+                    console.error("Firebase authentication failed.");
+                    return;
                 }
+                
+                // Reference to the main presence collection in RTDB
+                const presenceRef = ref(db, `/artifacts/${appId}/public/presence`);
+
+                // Reference to this user's specific presence node
+                const userStatusRef = ref(db, `/artifacts/${appId}/public/presence/${user.uid}`);
+                
+                // Reference to Firebase's connection state monitor
+                const connectedRef = ref(db, '.info/connected');
+
+                onValue(connectedRef, (snap) => {
+                    if (snap.val() === true) {
+                        // User is connected.
+                        set(userStatusRef, { online: true, last_changed: serverTimestamp() });
+
+                        // Set up the server-side onDisconnect hook.
+                        // This is the reliable way to handle disconnections.
+                        onDisconnect(userStatusRef).remove();
+                    }
+                });
+
+                // Listen for changes in the main presence collection to update the count.
+                onValue(presenceRef, (snapshot) => {
+                    const onlineUsersCount = snapshot.exists() ? snapshot.size : 0;
+                    onlineCountEl.innerText = onlineUsersCount > 0 ? onlineUsersCount : '1';
+                }, (error) => {
+                    console.error("Snapshot listener error:", error);
+                    onlineCountEl.innerText = '?';
+                });
+
+                // Best-effort cleanup for page unload
+                window.addEventListener('beforeunload', (e) => {
+                    set(userStatusRef, null); // Try to remove immediately
+                });
+
+
             } catch (error) {
-                console.error("Error setting up presence:", error);
+                console.error("Error setting up presence system:", error);
             }
         }
-        
-        // Initialize the presence system when the script loads
+
         setupPresence();
 
 
